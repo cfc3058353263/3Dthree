@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园3D</title>
+    <link href="./style.css" rel="stylesheet" type="text/css">
+    <script src="./js/build/three.min.js"></script>
+    <script src="./js/controls/OrbitControls.js"></script>
+    <script src="./js/loaders/MTLLoader.js"></script>
+    <script src="./js/loaders/OBJLoader.js"></script>
+    <script src="./js/libs/dat.gui.min.js"></script>
+    <script src="./js/libs/stats.min.js"></script>
+    <script src="./js/libs/tween.min.js"></script>
+    <script src="./js/jquery/jquery3.6.0.js"></script>
+    <script src="./fun.js"></script>
+    <script src="./sceneLoad.js"></script>
+
+</head>
+
+<body onload="draw();">
+    <div class="header">header</div>
+    <div class="main">
+        <div class="center">
+            <div id="center" class="inside">
+
+                <div class="last">底部固定区域</div>
+            </div>
+        </div>
+        <div class="left">左边固定区域</div>
+        <div class="right">
+            <div class="positionButton" onclick='positionInfo({x:"44.43302156142489",z:"14.39598899016884",name:"校门"})'>
+                <a href="#">校门</a>
+            </div>
+            <div class="positionButton"
+                onclick='positionInfo({x:"-23.20912216064916",z:"25.76776250386277",name:"教学楼"})'>
+                <a href="#">教学楼</a>
+            </div>
+            <div class="positionButton"
+                onclick='positionInfo({x:"38.898566388667106",z:"-87.71574658202884",name:"食堂"})'>
+                <a href="#">食堂</a>
+            </div>
+            <div class="positionButton" onclick='initial()'>
+                <a href="#">返回初始位置</a>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    //渲染
+    function render() {
+        renderer.render(scene, camera);
+        infoPositon();
+    }
+    //模型与材质的导入
+    var school3D
+    function initModel() {
+        school3D = new THREE.Group();
+        var axisHelper = new THREE.AxisHelper(250);
+        scene.add(axisHelper);
+        var loader = new THREE.OBJLoader();
+        loader.load('./src/schoolObj.obj', function (obj) {
+            obj.scale.set(0.05, 0.05, 0.05);
+            obj.rotateX(Math.PI / 2);
+            obj.rotateZ(-Math.PI / 2.5);
+            school3D.add(obj)
+            scene.add(school3D);
+        })
+    }
+    // 持续渲染
+    function animate() {
+        controls.update();
+        TWEEN.update();
+        render();
+        requestAnimationFrame(animate);
+    }
+    /*射线投射器*/
+    function onMouseDown(event) {
+        var raycaster = new THREE.Raycaster();
+        var mouse = new THREE.Vector2();
+        let center = document.getElementById("center")
+        let getBoundingClientRect = center.getBoundingClientRect();
+        mouse.x = ((event.clientX - center.getBoundingClientRect().left) / center.offsetWidth) * 2 - 1;
+        mouse.y = - ((event.clientY - center.getBoundingClientRect().top) / center.offsetHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        var raycasters = raycaster.intersectObjects(scene.children, true);
+        if (raycasters.length > 0) {
+            // raycasters[0].object.material.color.set("0xff0000");
+            console.log(raycasters[0].point)
+        }
+    }
+    window.addEventListener("mousedown", onMouseDown, false);
+
+    // 位置信息
+    var fixedBoardlist = [];
+    function positionInfo(event) {
+        var $div = $(`<div class="tag" style="display:none">
+                <span style="color:white;font-size: 10px;padding: 5px">楼宇名称：</span>
+                <span style="font-size: 11px;font-weight: bold">${event.name}</span>
+                <p style="padding: 5px;margin-top: -3px;">占地面积：100平方米</p>
+            </div>`);
+        if (fixedBoardlist.length === 0) {
+            fixedBoardlist.push(event);
+            $("#center").append($div);
+            line(event);
+        } else {
+            var size = fixedBoardlist.length;
+            for (var index in fixedBoardlist) {
+                if (fixedBoardlist[index].x === event.x) {//删除弹框
+                    fixedBoardlist.splice(index, 1);
+                    $("#center").children(".tag").eq(index).remove();
+                    let lineArr = school3D.children
+                    for (let item of lineArr) {
+                        if (item.type === "Line") {
+                            if (item.geometry.vertices[0].x === event.x) {
+                                school3D.remove(item)
+                            }
+                        }
+                    }
+                }
+            }
+            if (size === fixedBoardlist.length) { //添加弹框
+                fixedBoardlist.push(event);
+                $("#center").append($div);
+                line(event);
+            }
+        }
+    }
+    //添加线条
+    function line(event) {
+        var geometry = new THREE.Geometry();
+        var p1 = new THREE.Vector3(event.x, 0, event.z); //顶点1坐标
+        var p2 = new THREE.Vector3(event.x, 50, event.z); //顶点2坐标
+        geometry.vertices.push(p1, p2);
+        var material = new THREE.LineBasicMaterial({
+            color: 0xffff00,
+        });
+        var line = new THREE.Line(geometry, material);
+        school3D.add(line);
+    }
+    //添加多个位置信息
+    function infoPositon() {
+        for (var index in fixedBoardlist) {
+            divRender(fixedBoardlist[index], index);
+        }
+    }
+
+    //添加位置信息
+    function divRender(event, index) {
+        var position = new THREE.Vector3(event.x, 50, event.z);
+        var windowPosition = transPosition(position);
+        var left = windowPosition.x - 50;
+        var top = windowPosition.y - 30;
+        var $tag = $(".tag")
+        $tag.eq(index).css({ "display": "block", "left": left + 'px', "top": top + "px" })//添加标题
+    }
+
+    //三维坐标转二维坐标
+    function transPosition(position) {
+        let world_vector = new THREE.Vector3(position.x, position.y, position.z);
+        let vector = world_vector.project(camera);
+        let center = document.getElementById("center");
+        let halfWidth = (center.offsetWidth) / 2,
+            halfHeight = center.offsetHeight / 2;
+        return {
+            x: Math.round(vector.x * halfWidth + halfWidth),
+            y: Math.round(-vector.y * halfHeight + halfHeight)
+        };
+    }
+
+    // function initial() {
+    //     var camera2
+    //     var width = window.innerWidth; //窗口宽度
+    //     var height = window.innerHeight; //窗口高度
+    //     camera2 = new THREE.PerspectiveCamera(60, width / height, 1, 1000);
+    //     camera2.position.set(285.1105547268756, 107.99361427438008, 97.72078007921705); //设置相机位置
+    //     console.log(camera2)
+    //     console.log(camera)
+    //     console.log(controls.target)
+    //     let controls2 = new THREE.OrbitControls(camera, renderer.domElement);
+    //     controls2.target = new THREE.Vector3(0,0,0); 
+    //     // camera.position.set(285.1105547268756, 107.99361427438008, 97.72078007921705); //此处为初始值
+    //     // camera.up.set(0, 1, 0); //默认Y轴向上
+    //     // camera.lookAt(new THREE.Vector3(0, 0, 0));
+    //     // console.log(camera)
+    //     // controls.reset();
+    //     // console.log(camera)
+    //     animateCamera(camera2.position,controls2.target)
+    // }
+
+    function initial() {
+        var camera2
+        var width = window.innerWidth; //窗口宽度
+        var height = window.innerHeight; //窗口高度
+        camera2 = new THREE.PerspectiveCamera(60, width / height, 1, 1000);
+        camera2.position.set(285.1105547268756, 107.99361427438008, 97.72078007921705); //设置相机位置
+        let controls2 = new THREE.OrbitControls(camera, renderer.domElement);
+        controls2.target = new THREE.Vector3(0,0,0); 
+        // oldP  相机原来的位置
+// oldT  target原来的位置
+// newP  相机新的位置
+// newT  target新的位置
+// callBack  动画结束时的回调函数
+        animateCamera(camera.position,controls.target,camera2.position,controls2.target,function (){console.log(1)})
+    }
+
+
+    function draw() {
+        initRender();
+        initScene();
+        initCamera();
+        initLight();
+        initModel();
+        initControls();
+        animate();
+        render()
+
+        controls.addEventListener("change", render)
+        window.addEventListener('resize', onResize, false);
+    }
+</script>
+
+</html>
